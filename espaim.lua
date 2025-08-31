@@ -1,4 +1,3 @@
--- SERVICES
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -7,7 +6,6 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local Mouse = LocalPlayer:GetMouse()
 
--- CONFIG
 local LOCK_KEY = Enum.KeyCode.E
 local FOV_RADIUS = 200
 local ESP_COLOR = Color3.fromRGB(255, 255, 255)
@@ -20,7 +18,6 @@ local antiAimActive = false
 local lockedTarget = nil
 local espObjects = {}
 
--- FOV CIRCLE
 local fovCircle = Drawing.new("Circle")
 fovCircle.Visible = true
 fovCircle.Color = ESP_COLOR
@@ -31,13 +28,11 @@ fovCircle.Transparency = 1
 fovCircle.Radius = FOV_RADIUS
 fovCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
 
--- LINE TO TARGET
 local targetLine = Drawing.new("Line")
 targetLine.Visible = false
 targetLine.Color = Color3.fromRGB(255,255,255)
 targetLine.Thickness = 2
 
--- GUI SPINNING IMAGE
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
 local spinningImage = Instance.new("ImageLabel", ScreenGui)
 spinningImage.Image = "rbxassetid://103453094686890"
@@ -45,9 +40,9 @@ spinningImage.Size = UDim2.new(0,150,0,150)
 spinningImage.Position = UDim2.new(1,-160,0,10)
 spinningImage.BackgroundTransparency = 1
 
--- UTILITIES
-local function isTarget(player)
-    return player ~= LocalPlayer
+-- Fonction pour détecter si le joueur est un ennemi
+local function isEnemy(player)
+    return player ~= LocalPlayer and player.Team ~= LocalPlayer.Team
 end
 
 local function isTargetTouchable(target)
@@ -71,7 +66,7 @@ local function getClosestTarget()
     local screenCenter = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
 
     for _, player in pairs(Players:GetPlayers()) do
-        if isTarget(player) and player.Character and player.Character:FindFirstChild("Head") then
+        if isEnemy(player) and player.Character and player.Character:FindFirstChild("Head") then
             local headPos, onScreen = Camera:WorldToViewportPoint(player.Character.Head.Position)
             if onScreen then
                 local dist = (Vector2.new(headPos.X, headPos.Y) - screenCenter).Magnitude
@@ -86,7 +81,6 @@ local function getClosestTarget()
     return closest
 end
 
--- ESP FUNCTIONS
 local function createESP(player)
     if espObjects[player] then return end
 
@@ -127,7 +121,6 @@ local function removeESP(player)
     end
 end
 
--- AIMBOT
 local function triggerBot(targetPlayer)
     if not AUTO_SHOOT or not targetPlayer or not targetPlayer.Character then return end
     local head = targetPlayer.Character:FindFirstChild("Head")
@@ -144,7 +137,6 @@ local function triggerBot(targetPlayer)
     end
 end
 
--- INPUT HANDLING
 UserInputService.InputBegan:Connect(function(input, processed)
     if processed then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -176,19 +168,15 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
--- MAIN LOOP
 RunService.RenderStepped:Connect(function()
-    -- FOV CIRCLE
     fovCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
     fovCircle.Radius = FOV_RADIUS
 
-    -- Spinning Image
     spinningImage.Rotation = (spinningImage.Rotation + 2) % 360
 
-    -- KILL ALL
     if killAllActive then
         for _, target in pairs(Players:GetPlayers()) do
-            if isTarget(target) and target.Character and target.Character:FindFirstChild("Humanoid") and target.Character.Humanoid.Health > 0 then
+            if isEnemy(target) and target.Character and target.Character:FindFirstChild("Humanoid") and target.Character.Humanoid.Health > 0 then
                 local head = target.Character:FindFirstChild("Head")
                 local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 if head and hrp then
@@ -200,10 +188,9 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- ESP & AIMBOT
-    local closestForLine = getClosestTarget() -- Toujours calculer la cible la plus proche
+    local closestForLine = getClosestTarget()
     for _, player in pairs(Players:GetPlayers()) do
-        if isTarget(player) then
+        if isEnemy(player) then
             createESP(player)
             local esp = espObjects[player]
             local char = player.Character
@@ -216,26 +203,22 @@ RunService.RenderStepped:Connect(function()
                     esp.Box.Color = isTargetTouchable(player) and Color3.fromRGB(148,0,211) or ESP_COLOR
                     esp.Box.Visible = true
 
-                    -- Name + Distance
                     local dist = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and (LocalPlayer.Character.HumanoidRootPart.Position - char.HumanoidRootPart.Position).Magnitude) or 0
                     esp.Name.Text = player.Name .. " [" .. math.floor(dist) .. "]"
                     esp.Name.Position = Vector2.new(rootPos.X, rootPos.Y - esp.Box.Size.Y/2 - 15)
                     esp.Name.Visible = true
 
-                    -- Health Bar
                     local healthPercent = math.clamp(char.Humanoid.Health / char.Humanoid.MaxHealth,0,1)
                     esp.HealthBar.From = Vector2.new(rootPos.X - esp.Box.Size.X/2 -5, rootPos.Y + esp.Box.Size.Y/2)
                     esp.HealthBar.To = Vector2.new(rootPos.X - esp.Box.Size.X/2 -5, rootPos.Y + esp.Box.Size.Y/2 - esp.Box.Size.Y*healthPercent)
                     esp.HealthBar.Color = Color3.fromRGB(255*(1-healthPercent),255*healthPercent,0)
                     esp.HealthBar.Visible = true
 
-                    -- Ping
                     local pingValue = player:FindFirstChild("NetworkPing") and player.NetworkPing.Value or math.random(20,100)
                     esp.Ping.Text = tostring(math.floor(pingValue)) .. "ms"
                     esp.Ping.Position = Vector2.new(rootPos.X, rootPos.Y + esp.Box.Size.Y/2 + 10)
                     esp.Ping.Visible = true
 
-                    -- AIMBOT
                     if AIMBOT_ENABLED and lockedTarget == player then
                         local headPos,_ = Camera:WorldToViewportPoint(char.Head.Position)
                         local screenCenter = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
@@ -262,7 +245,6 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- LIGNE VERS LA CIBLE POTENTIELLE
     if closestForLine and closestForLine.Character and closestForLine.Character:FindFirstChild("Head") then
         local headPos, onScreen = Camera:WorldToViewportPoint(closestForLine.Character.Head.Position)
         if onScreen then
@@ -277,7 +259,6 @@ RunService.RenderStepped:Connect(function()
         targetLine.Visible = false
     end
 
-    -- THIRD PERSON
     if forceThirdPerson and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         local hrp = LocalPlayer.Character.HumanoidRootPart
         local offset = Vector3.new(0,5,10)
@@ -285,7 +266,6 @@ RunService.RenderStepped:Connect(function()
         Camera.CFrame = CFrame.new(hrp.Position + offset, hrp.Position)
     end
 
-    -- ANTI-AIM
     if antiAimActive and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         local hrp = LocalPlayer.Character.HumanoidRootPart
         hrp.CFrame = hrp.CFrame * CFrame.Angles(0,math.rad(20),0)
